@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NeuroMouse World — Autonomous Agent Lab</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+darkMode: 'class',
+theme: {
+extend: {
+colors: {
+anthropic: {
+bg: '#141413',
+card: '#1c1c1a',
+border: '#2a2a26',
+borderHover: '#3f3f38',
+textPrimary: '#edece9',
+textSecondary: '#9b9a93',
+accent: '#d97706', // warm clay/amber
+accentHover: '#b45309',
+subtle: '#262624'
+}
+},
+fontFamily: {
+sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+mono: ['JetBrains Mono', 'Fira Code', 'monospace']
+}
+}
+}
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body {
+background-color: #141413;
+color: #edece9;
+font-family: 'Inter', sans-serif;
+}
+canvas {
+image-rendering: pixelated;
+}
+.anthropic-card {
+background-color: #1c1c1a;
+border: 1px solid #2a2a26;
+border-radius: 1rem;
+box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.4);
+}
+.anthropic-input {
+background-color: #141413;
+border: 1px solid #2a2a26;
+color: #edece9;
+transition: all 0.2s ease;
+}
+.anthropic-input:focus {
+border-color: #d97706;
+outline: none;
+box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
+}
+</style>
+</head>
+<body class="min-h-screen antialiased selection:bg-amber-600/30 selection:text-amber-200 p-4 md:p-8">
+<div class="mx-auto max-w-7xl">
+<!-- Header -->
+<header class="anthropic-card mb-6 px-6 py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+<div class="flex items-center gap-3">
+<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-600/10 border border-amber-600/20 text-amber-500 font-bold text-lg">
+🧠
+</div>
+<div>
+<h1 class="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
+NeuroMouse World
+<span class="rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-400 border border-amber-500/20">v2.0 Lab</span>
+</h1>
+<p class="text-xs text-anthropic-textSecondary">Multi-Agent Neural Reinforcement & Semantic Training Simulator</p>
+</div>
+</div>
+<div class="flex items-center gap-4 text-xs font-mono">
+<div class="flex items-center gap-2 rounded-lg bg-anthropic-subtle px-3 py-1.5 border border-anthropic-border">
+<span class="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-anthropic-textSecondary">System Status:</span>
+<span class="text-white font-medium" id="lblConnection">Connected</span>
+</div>
+</div>
+</header>
+<!-- Main Grid -->
+<main class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+<!-- Simulation View (2 Columns) -->
+<section class="anthropic-card p-6 lg:col-span-2 flex flex-col justify-between">
+<!-- Metrics Bar -->
+<div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6 p-3 rounded-xl bg-anthropic-subtle border border-anthropic-border text-xs">
+<div>
+<span class="block text-anthropic-textSecondary mb-0.5">Run Iteration</span>
+<strong id="lblRun" class="font-mono text-sm text-white">1</strong>
+</div>
+<div>
+<span class="block text-anthropic-textSecondary mb-0.5">Survival Time</span>
+<strong id="lblTime" class="font-mono text-sm text-amber-400">0s</strong>
+</div>
+<div>
+<span class="block text-anthropic-textSecondary mb-0.5">Best Record</span>
+<strong id="lblRecord" class="font-mono text-sm text-emerald-400">0s</strong>
+</div>
+<div>
+<span class="block text-anthropic-textSecondary mb-0.5">Active Pattern</span>
+<strong id="lblMode" class="font-mono text-sm text-cyan-400 truncate block">Learning</strong>
+</div>
+<div>
+<span class="block text-anthropic-textSecondary mb-0.5">Vocabulary</span>
+<strong id="lblMemory" class="font-mono text-sm text-white">0 tokens</strong>
+</div>
+</div>
+<!-- Canvas Container -->
+<div class="relative flex items-center justify-center bg-anthropic-subtle rounded-xl border border-anthropic-border p-4 overflow-hidden mb-6">
+<canvas id="simCanvas" width="440" height="440" class="rounded-lg shadow-xl border border-anthropic-border max-w-full h-auto"></canvas>
+</div>
+<!-- Command Input -->
+<div class="space-y-2">
+<label for="wordInput" class="block text-xs font-medium text-anthropic-textSecondary uppercase tracking-wider">Semantic Prompt Injection (Teach Agent)</label>
+<div class="flex gap-2">
+<input id="wordInput" type="text" value="speed_boost" class="anthropic-input flex-1 rounded-xl px-4 py-2.5 text-sm font-mono placeholder:text-anthropic-textSecondary" placeholder="Enter command or behavior token..." />
+<button id="btnSend" class="rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-amber-500 transition-colors shadow-lg shadow-amber-600/10 cursor-pointer">
+Transmit Prompt
+</button>
+</div>
+</div>
+</section>
+<!-- Neural Brain & Telemetry Sidebar (1 Column) -->
+<aside class="anthropic-card p-6 flex flex-col justify-between space-y-6">
+<div>
+<div class="flex items-center justify-between mb-3">
+<h2 class="text-xs font-bold uppercase tracking-widest text-anthropic-textSecondary">Neural Network Topology</h2>
+<span class="text-[10px] font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">Synaptic Map</span>
+</div>
+<div class="rounded-xl border border-anthropic-border bg-anthropic-subtle p-2 mb-4">
+<canvas id="brainCanvas" width="280" height="180" class="w-full rounded-lg bg-[#0d0d0c]"></canvas>
+</div>
+<!-- Telemetry Logs -->
+<div class="space-y-3 rounded-xl border border-anthropic-border bg-anthropic-subtle p-4 text-xs">
+<div class="flex items-start gap-2.5 pb-3 border-b border-anthropic-border">
+<span class="text-base">💡</span>
+<div>
+<span class="block text-[10px] uppercase font-mono text-anthropic-textSecondary mb-0.5">Agent Cognition</span>
+<span id="mouseThought" class="text-amber-200 font-medium">Agent uninitialized. Awaiting reinforcement cues.</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-2 pt-1 font-mono text-[11px]">
+<div>
+<span class="text-anthropic-textSecondary block">Active Action:</span>
+<span id="currentAction" class="text-white truncate block">-</span>
+</div>
+<div>
+<span class="text-anthropic-textSecondary block">Memory Tokens:</span>
+<span id="memoryView" class="text-cyan-400 truncate block">none</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Legend / Environment Key -->
+<div class="border-t border-anthropic-border pt-4">
+<h3 class="text-[11px] font-bold uppercase tracking-wider text-anthropic-textSecondary mb-3">Environment Entities</h3>
+<div class="space-y-2 text-xs font-mono">
+<div class="flex items-center justify-between py-1 px-2 rounded bg-anthropic-subtle">
+<span class="flex items-center gap-2">🧀 Cheese</span>
+<span class="text-emerald-400 font-medium">Reward (+10)</span>
+</div>
+<div class="flex items-center justify-between py-1 px-2 rounded bg-anthropic-subtle">
+<span class="flex items-center gap-2">🪤 Trap</span>
+<span class="text-red-400 font-medium">Hazard (-5)</span>
+</div>
+<div class="flex items-center justify-between py-1 px-2 rounded bg-anthropic-subtle">
+<span class="flex items-center gap-2">🕳️ Tunnel</span>
+<span class="text-blue-400 font-medium">Portal</span>
+</div>
+<div class="flex items-center justify-between py-1 px-2 rounded bg-anthropic-subtle">
+<span class="flex items-center gap-2">🐱 Predator</span>
+<span class="text-amber-400 font-medium">Critical Threat</span>
+</div>
+</div>
+</div>
+</aside>
+</main>
+</div>
+<script>
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+const brainCanvas = document.getElementById('brainCanvas');
+const bCtx = brainCanvas.getContext('2d');
+const GRID_SIZE = 20;
+const CELL_SIZE = canvas.width / GRID_SIZE;
+const state = {
+mouse: { x: 5, y: 5 },
+cat: { x: 15, y: 15 },
+cheese: [],
+traps: [],
+tunnels: [],
+memory: {},
+currentPattern: 'none',
+survivalTime: 0,
+bestRecord: 0,
+runId: 1
+};
+const neurons = Array.from({ length: 36 }, () => ({
+x: Math.random() * 280,
+y: Math.random() * 180,
+active: Math.random() * 0.3
+}));
+function render() {
+if (!state.mouse) return;
+const memoryCount = Object.keys(state.memory || {}).length;
+document.getElementById('lblMemory').textContent = ⁠${memoryCount} tokens⁠;
+document.getElementById('lblRun').textContent = state.runId || 1;
+document.getElementById('lblTime').textContent = ⁠${state.survivalTime || 0}s⁠;
+document.getElementById('lblRecord').textContent = ⁠${state.bestRecord || 0}s⁠;
+document.getElementById('lblMode').textContent = state.currentPattern === 'none' ? 'Exploration' : state.currentPattern;
+const memoryKeys = Object.keys(state.memory || {}).slice(-4);
+document.getElementById('memoryView').textContent = memoryKeys.length ? memoryKeys.join(', ') : 'none';
+document.getElementById('currentAction').textContent = state.currentPattern || 'idle';
+drawWorld();
+}
+function drawWorld() {
+// Clear main canvas with sophisticated dark tone
+ctx.fillStyle = '#141413';
+ctx.fillRect(0, 0, canvas.width, canvas.height);
+// Subtle Grid lines
+ctx.strokeStyle = '#22221f';
+ctx.lineWidth = 1;
+for (let i = 0; i <= GRID_SIZE; i++) {
+ctx.beginPath();
+ctx.moveTo(i * CELL_SIZE, 0);
+ctx.lineTo(i * CELL_SIZE, canvas.height);
+ctx.stroke();
+ctx.beginPath();
+ctx.moveTo(0, i * CELL_SIZE);
+ctx.lineTo(canvas.width, i * CELL_SIZE);
+ctx.stroke();
+}
+// Tunnels
+(state.tunnels || []).forEach(t => {
+ctx.font = '16px sans-serif';
+ctx.fillText('🕳️', t.x * CELL_SIZE + 2, t.y * CELL_SIZE + 17);
+});
+// Cheese
+(state.cheese || []).forEach(c => {
+ctx.font = '16px sans-serif';
+ctx.fillText('🧀', c.x * CELL_SIZE + 2, c.y * CELL_SIZE + 17);
+});
+// Traps
+(state.traps || []).forEach(t => {
+ctx.font = '16px sans-serif';
+ctx.fillText('🪤', t.x * CELL_SIZE + 2, t.y * CELL_SIZE + 17);
+});
+// Entities (Cat & Mouse)
+ctx.font = '18px sans-serif';
+ctx.fillText('🐱', state.cat.x * CELL_SIZE + 1, state.cat.y * CELL_SIZE + 18);
+ctx.fillText('🐭', state.mouse.x * CELL_SIZE + 1, state.mouse.y * CELL_SIZE + 18);
+// Neural Brain Canvas Render
+bCtx.fillStyle = '#0d0d0c';
+bCtx.fillRect(0, 0, brainCanvas.width, brainCanvas.height);
+neurons.forEach((n, idx) => {
+n.active = Math.max(0, n.active - 0.02);
+if (state.currentPattern !== 'none' && Math.random() > 0.7) {
+n.active = Math.min(1, n.active + 0.4);
+}
+bCtx.fillStyle = ⁠rgba(217, 119, 6, ${0.25 + n.active * 0.75})⁠;
+bCtx.beginPath();
+bCtx.arc(n.x, n.y, 2 + n.active * 2.5, 0, Math.PI * 2);
+bCtx.fill();
+for (let j = idx + 1; j < neurons.length; j++) {
+const n2 = neurons[j];
+const dist = Math.hypot(n.x - n2.x, n.y - n2.y);
+if (dist < 45) {
+bCtx.strokeStyle = ⁠rgba(217, 119, 6, ${(1 - dist / 45) * (n.active + n2.active) * 0.35})⁠;
+bCtx.lineWidth = 0.75;
+bCtx.beginPath();
+bCtx.moveTo(n.x, n.y);
+bCtx.lineTo(n2.x, n2.y);
+bCtx.stroke();
+}
+}
+});
+}
+async function fetchWorld() {
+try {
+const response = await fetch('/api/world');
+const data = await response.json();
+Object.assign(state, data);
+document.getElementById('lblConnection').textContent = 'Synced';
+document.getElementById('lblConnection').className = 'text-emerald-400 font-medium';
+render();
+} catch (error) {
+document.getElementById('lblConnection').textContent = 'Backend Offline';
+document.getElementById('lblConnection').className = 'text-red-400 font-medium';
+document.getElementById('mouseThought').textContent = 'Warning: Unable to establish connection with server instance.';
+}
+}
+async function sendWord() {
+const input = document.getElementById('wordInput');
+const word = input.value.trim();
+if (!word) {
+document.getElementById('mouseThought').textContent = 'Prompt transmission aborted: empty payload.';
+return;
+}
+try {
+const response = await fetch('/api/world/teach', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ word })
+});
+const data = await response.json();
+if (data.ok) {
+document.getElementById('mouseThought').textContent = ⁠Successfully integrated prompt: "${word}" -> pattern [${data.pattern}].⁠;
+input.value = '';
+fetchWorld();
+}
+} catch (error) {
+document.getElementById('mouseThought').textContent = 'Error transmitting prompt to backend service.';
+}
+}
+async function tickWorld() {
+try {
+const response = await fetch('/api/world/tick', { method: 'POST' });
+const data = await response.json();
+if (data && data.world) {
+Object.assign(state, data.world);
+render();
+}
+} catch (error) {
+// Silent catch for tick polling
+}
+}
+document.getElementById('btnSend').addEventListener('click', sendWord);
+document.getElementById('wordInput').addEventListener('keydown', (e) => {
+if (e.key === 'Enter') sendWord();
+});
+fetchWorld();
+setInterval(tickWorld, 5000);
+</script>
+</body>
+</html>
