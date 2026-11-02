@@ -34,8 +34,6 @@
 
       <div class="flex flex-wrap gap-2">
         <button id="btnPause" class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium hover:bg-blue-500">Pause</button>
-        <button id="btnTurbo" class="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium hover:bg-amber-500">Turbo (10x)</button>
-        <button id="btnReset" class="rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium hover:bg-slate-600">Neu starten</button>
       </div>
     </header>
 
@@ -104,6 +102,8 @@
     const GRID_SIZE = 20;
     const CELL_SIZE = canvas.width / GRID_SIZE;
 
+    const MOVE_INTERVAL_MS = 1000;
+    let lastMoveTs = 0;
     let isPaused = false;
     let isTurbo = false;
     let simSpeed = 1;
@@ -299,23 +299,6 @@
         : 'rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium hover:bg-blue-500';
     });
 
-    document.getElementById('btnTurbo').addEventListener('click', () => {
-      isTurbo = !isTurbo;
-      document.getElementById('btnTurbo').className = isTurbo
-        ? 'rounded-lg bg-amber-400 text-black font-bold px-3 py-2 text-sm transition'
-        : 'rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium hover:bg-amber-500';
-    });
-
-    document.getElementById('btnReset').addEventListener('click', () => {
-      survivalTime = 0;
-      bestRecord = 0;
-      runId = 1;
-      document.getElementById('lblRun').textContent = runId;
-      document.getElementById('lblRecord').textContent = '0s';
-      document.getElementById('lblTime').textContent = '0s';
-      spawnEntities();
-    });
-
     document.getElementById('btnTeach').addEventListener('click', teachWord);
     document.getElementById('btnTrigger').addEventListener('click', triggerWord);
     document.getElementById('wordInput').addEventListener('keydown', (e) => {
@@ -373,7 +356,7 @@
     function update() {
       if (isPaused) return;
 
-      const steps = isTurbo ? 12 : simSpeed;
+      const steps = isTurbo ? 1 : 1;
 
       for (let i = 0; i < steps; i++) {
         if (!mouse.alive) {
@@ -529,8 +512,11 @@
       bCtx.fillText(`Wörter: ${languageMemory.size}`, 12, 36);
     }
 
-    function loop() {
-      update();
+    function loop(ts) {
+      if (!isPaused && ts - lastMoveTs >= MOVE_INTERVAL_MS) {
+        update();
+        lastMoveTs = ts;
+      }
       draw();
       requestAnimationFrame(loop);
     }
@@ -542,7 +528,7 @@
     addWordAssociation('käse', 'cheese', 1);
     addWordAssociation('falle', 'trap', 1);
     addWordAssociation('tunnel', 'tunnel', 1);
-    loop();
+    requestAnimationFrame(loop);
   </script>
 </body>
 </html>
