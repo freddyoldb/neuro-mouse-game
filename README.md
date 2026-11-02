@@ -1,42 +1,37 @@
-# neuro-mouse-game
+# NeuroMouse World
 
-A local-only language-learning mouse simulation.
+NeuroMouse World is an interactive, shared multi-user learning environment where an autonomous agent (a mouse) navigates a grid world while learning from user-submitted text inputs. The system combines real-time simulation mechanics, neural network visualization, and collaborative text-based learning.
 
-This version is not deployed to GitHub Pages. It runs locally on your computer and keeps everything in a private in-memory world.
+---
 
-Features:
-- single-user local world
-- no global public backend
-- train the mouse by typing words
-- automatic word-to-behavior learning
-- no reset button, no turbo, no shared state
+## Features
 
-## Install
+- **Interactive Grid Simulation:** A canvas-based 2D world where a mouse navigates while avoiding hazards (cats, traps) and finding rewards (cheese, tunnels).
+- **Global Neural Learning:** Users can submit words or patterns via the input field to teach the mouse new behaviors and shape its learning phase in real-time.
+- **Neural Network Visualizer:** An animated, node-based brain canvas that dynamically reflects neural activity and active learning patterns.
+- **Real-time Synchronization:** Continuous state tracking including survival time, personal records, current action patterns, and active vocabulary count.
+- **Modern Responsive UI:** Built with Tailwind CSS and styled with a dark, high-contrast aesthetic.
 
-1. Open a terminal in the project folder.
-2. Run:
-   npm install
+---
 
-## Start locally
+## Tech Stack
 
-Run:
-npm start
+- **Frontend:** HTML5, Tailwind CSS (via CDN), JavaScript (Canvas API)
+- **Backend Integration:** REST API endpoints (`/api/world`, `/api/world/teach`, `/api/world/tick`)
 
-Then open:
-http://localhost:3000
+---
 
-## Local development
+## Getting Started
 
-npm run dev
+1. Save the main HTML interface file to your project directory (e.g., `index.html`).
+2. Set up a backend server that implements the required API routes (`/api/world`, `/api/world/teach`, and `/api/world/tick`).
+3. Serve the static HTML file through your web server.
+4. Open the application in your browser to start interacting with the simulation and teaching the mouse.
 
-## What this version does
+---
 
-- uses a local Express backend
-- serves the game from your computer
-- keeps all game state in memory only
-- is fully private to the machine running it
-- can be packaged later into a desktop app if desired
+## API Endpoints Reference
 
-## Notes
-
-This is intentionally not a public GitHub Pages app. It is designed to run fully local and privately.
+- `GET /api/world` - Retrieves the current state of the world, including mouse position, hazards, items, and memory.
+- `POST /api/world/teach` - Submits a new word to train the mouse and update its behavior patterns.
+- `POST /api/world/tick` - Advances the simulation state by one tick.
