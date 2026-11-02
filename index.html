@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NeuroMouse Lab</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: radial-gradient(circle at top, #111827 0%, #0b0f19 45%, #090d14 100%);
+      color: #f3f4f6;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    canvas {
+      background: #111827;
+      border-radius: 1rem;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .glass {
+      background: rgba(17, 24, 39, 0.8);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      backdrop-filter: blur(6px);
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4">
+  <div class="mx-auto max-w-6xl">
+    <header class="glass mb-4 rounded-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-black text-indigo-400">🧠 NeuroMouse Lab</h1>
+        <p class="text-xs text-gray-400">Die Maus lernt von Null auf – mit Wörtern, Gefahr und Mustern.</p>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button id="btnPause" class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium hover:bg-blue-500">Pause</button>
+        <button id="btnTurbo" class="rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium hover:bg-amber-500">Turbo (10x)</button>
+        <button id="btnReset" class="rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium hover:bg-slate-600">Neu starten</button>
+      </div>
+    </header>
+
+    <main class="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <section class="glass rounded-2xl p-4 md:col-span-2">
+        <div class="mb-3 flex flex-wrap justify-between gap-2 px-1 text-xs text-gray-400">
+          <span>Runde: <strong id="lblRun" class="text-white">1</strong></span>
+          <span>Überlebt: <strong id="lblTime" class="text-white">0s</strong></span>
+          <span>Rekord: <strong id="lblRecord" class="text-emerald-400">0s</strong></span>
+          <span>Modus: <strong id="lblMode" class="text-amber-400">Zufall (100%)</strong></span>
+          <span>Wörter: <strong id="lblMemory" class="text-cyan-300">0</strong></span>
+        </div>
+
+        <canvas id="simCanvas" width="420" height="420" class="w-full max-w-[420px] mx-auto block"></canvas>
+
+        <div class="mt-4 space-y-3">
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <input id="wordInput" type="text" value="achtung" class="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none ring-0 placeholder:text-slate-500 focus:border-indigo-500" placeholder="Wort eingeben: achtung, käse, falle, tunnel..." />
+            <button id="btnTrigger" class="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500">Wort aktivieren</button>
+          </div>
+
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <select id="patternSelect" class="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500">
+              <option value="flee">Flucht</option>
+              <option value="cheese">Käse suchen</option>
+              <option value="trap">Falle meiden</option>
+              <option value="tunnel">Tunnel nutzen</option>
+              <option value="wait">Warten / Beobachten</option>
+            </select>
+            <button id="btnTeach" class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium hover:bg-emerald-500">Wort verknüpfen</button>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-400">Tempo:</span>
+            <input id="speedRange" type="range" min="1" max="20" value="1" class="w-full accent-indigo-500" />
+          </div>
+        </div>
+      </section>
+
+      <aside class="glass rounded-2xl p-4">
+        <h2 class="mb-2 text-sm font-bold uppercase tracking-[0.12em] text-indigo-400">Neurales Gehirn</h2>
+        <canvas id="brainCanvas" width="260" height="200" class="mb-3 w-full rounded-xl border border-slate-800 bg-black/30"></canvas>
+
+        <div class="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-300">
+          <p>💡 <span id="mouseThought" class="text-indigo-300">Die Maus weiß von nichts und erkundet blind.</span></p>
+          <p class="text-slate-400">Aktuelle Aktion: <span id="currentAction" class="text-white">-</span></p>
+          <p class="text-slate-400">Erinnerung: <span id="memoryView" class="text-cyan-300">noch keine Verknüpfungen</span></p>
+        </div>
+
+        <div class="mt-4 space-y-2 border-t border-slate-800 pt-3 text-[11px] text-slate-400">
+          <div class="flex justify-between"><span>🧀 Käse</span><span class="text-emerald-400">Aktiv</span></div>
+          <div class="flex justify-between"><span>⚠️ Falle</span><span class="text-red-400">Gefährlich</span></div>
+          <div class="flex justify-between"><span>🕳️ Tunnel</span><span class="text-blue-400">Sicher</span></div>
+          <div class="flex justify-between"><span>💥 Untätigkeit</span><span class="text-amber-400">Verboten</span></div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const brainCanvas = document.getElementById('brainCanvas');
+    const bCtx = brainCanvas.getContext('2d');
+
+    const GRID_SIZE = 20;
+    const CELL_SIZE = canvas.width / GRID_SIZE;
+
+    let isPaused = false;
+    let isTurbo = false;
+    let simSpeed = 1;
+
+    let mouse = { x: 5, y: 5, idleTime: 0, alive: true, speedBoost: 1, score: 0 };
+    let cat = { x: 15, y: 15, speed: 0.8 };
+    let cheeseList = [
+      { x: 12, y: 5 },
+      { x: 3, y: 16 },
+      { x: 17, y: 10 },
+      { x: 6, y: 2 }
+    ];
+    let traps = [
+      { x: 8, y: 8 },
+      { x: 14, y: 3 },
+      { x: 5, y: 17 }
+    ];
+    let puddles = [
+      { x: 10, y: 10 },
+      { x: 11, y: 10 },
+      { x: 7, y: 12 }
+    ];
+    let tunnels = [
+      { x: 5, y: 12 },
+      { x: 6, y: 12 },
+      { x: 16, y: 16 }
+    ];
+
+    let runId = 1;
+    let survivalTime = 0;
+    let bestRecord = 0;
+    let explorationRate = 1.0;
+    let currentPattern = 'none';
+
+    const languageMemory = new Map();
+
+    const neurons = Array.from({ length: 42 }, () => ({
+      x: Math.random() * 260,
+      y: Math.random() * 200,
+      z: Math.random() * 50 - 25,
+      active: 0
+    }));
+
+    function updateMemoryUI() {
+      const count = languageMemory.size;
+      document.getElementById('lblMemory').textContent = count;
+      const keys = Array.from(languageMemory.keys()).slice(-5);
+      document.getElementById('memoryView').textContent = keys.length ? keys.map(k => `"${k}"`).join(', ') : 'noch keine Verknüpfungen';
+    }
+
+    function labelForPattern(pattern) {
+      const labels = {
+        flee: 'Flucht',
+        cheese: 'Käse suchen',
+        trap: 'Falle meiden',
+        tunnel: 'Tunnel nutzen',
+        wait: 'Warten',
+        none: 'keine'
+      };
+      return labels[pattern] || 'unbekannt';
+    }
+
+    function randomAction() {
+      const actions = [
+        { dx: 0, dy: -1, name: 'Hoch' },
+        { dx: 0, dy: 1, name: 'Runter' },
+        { dx: -1, dy: 0, name: 'Links' },
+        { dx: 1, dy: 0, name: 'Rechts' },
+        { dx: 0, dy: 0, name: 'Warten' }
+      ];
+      return actions[Math.floor(Math.random() * actions.length)];
+    }
+
+    function patternToAction(pattern) {
+      switch (pattern) {
+        case 'flee': {
+          const dx = cat.x < mouse.x ? 1 : cat.x > mouse.x ? -1 : 0;
+          const dy = cat.y < mouse.y ? 1 : cat.y > mouse.y ? -1 : 0;
+
+          return {
+            dx: dx === 0 ? (Math.random() > 0.5 ? 1 : -1) : -dx,
+            dy: dy === 0 ? (Math.random() > 0.5 ? 1 : -1) : -dy,
+            name: 'Vor Katze fliehen'
+          };
+        }
+
+        case 'cheese': {
+          const target = cheeseList[0] || { x: mouse.x, y: mouse.y };
+          let dx = 0;
+          let dy = 0;
+          if (target.x < mouse.x) dx = -1;
+          else if (target.x > mouse.x) dx = 1;
+          if (target.y < mouse.y) dy = -1;
+          else if (target.y > mouse.y) dy = 1;
+          return { dx, dy, name: 'Käse suchen' };
+        }
+
+        case 'trap': {
+          let best = { dx: 0, dy: 0, score: Infinity };
+          for (let x = -1; x <= 1; x++) {
+            for (let y = -1; y <= 1; y++) {
+              if (x === 0 && y === 0) continue;
+              const nx = Math.max(0, Math.min(GRID_SIZE - 1, mouse.x + x));
+              const ny = Math.max(0, Math.min(GRID_SIZE - 1, mouse.y + y));
+              let s = 0;
+              for (const t of traps) {
+                if (t.x === nx && t.y === ny) s += 50;
+              }
+              if (s < best.score) {
+                best = { dx: x, dy: y, score: s };
+              }
+            }
+          }
+          return { dx: best.dx, dy: best.dy, name: 'Falle meiden' };
+        }
+
+        case 'tunnel': {
+          const target = tunnels[0] || { x: mouse.x, y: mouse.y };
+          let dx = 0;
+          let dy = 0;
+          if (target.x < mouse.x) dx = -1;
+          else if (target.x > mouse.x) dx = 1;
+          if (target.y < mouse.y) dy = -1;
+          else if (target.y > mouse.y) dy = 1;
+          return { dx, dy, name: 'Tunnel nutzen' };
+        }
+
+        case 'wait':
+        default:
+          return { dx: 0, dy: 0, name: 'Warten' };
+      }
+    }
+
+    function addWordAssociation(word, pattern, amount = 1) {
+      const key = word.trim().toLowerCase();
+      if (!key) return;
+
+      const existing = languageMemory.get(key) || { pattern, strength: 0 };
+      existing.pattern = pattern;
+      existing.strength += amount;
+      languageMemory.set(key, existing);
+      updateMemoryUI();
+    }
+
+    function teachWord() {
+      const input = document.getElementById('wordInput');
+      const word = input.value.trim();
+      const pattern = document.getElementById('patternSelect').value;
+
+      if (!word) {
+        document.getElementById('mouseThought').textContent = 'Kein Wort eingegeben. Die Maus kann nichts verknüpfen.';
+        return;
+      }
+
+      const catClose = Math.abs(cat.x - mouse.x) + Math.abs(cat.y - mouse.y) <= 4;
+      if (pattern === 'flee' && !catClose) {
+        document.getElementById('mouseThought').textContent = 'Das Wort "Flucht" ist am sinnvollsten, wenn die Katze wirklich nah ist.';
+      }
+
+      addWordAssociation(word, pattern, 1);
+      document.getElementById('mouseThought').textContent = `Wort "${word}" mit Muster "${labelForPattern(pattern)}" verknüpft.`;
+    }
+
+    function triggerWord() {
+      const word = document.getElementById('wordInput').value.trim().toLowerCase();
+      if (!word) {
+        document.getElementById('mouseThought').textContent = 'Keine Eingabe. Die Maus kann kein Wort aktivieren.';
+        return;
+      }
+
+      const memory = languageMemory.get(word);
+      if (!memory) {
+        document.getElementById('mouseThought').textContent = `Das Wort "${word}" ist noch unbekannt. Die Maus lernt erst.`;
+        currentPattern = 'none';
+        return;
+      }
+
+      currentPattern = memory.pattern;
+      const strength = memory.strength;
+
+      if (strength >= 3 || currentPattern === 'flee') {
+        document.getElementById('mouseThought').textContent = `Wort erkannt: "${word}" = ${labelForPattern(currentPattern)} (Stärke ${strength}).`;
+      } else {
+        document.getElementById('mouseThought').textContent = `Wort erkannt, aber noch schwach: "${word}" -> ${labelForPattern(currentPattern)}.`;
+      }
+    }
+
+    document.getElementById('btnPause').addEventListener('click', () => {
+      isPaused = !isPaused;
+      document.getElementById('btnPause').textContent = isPaused ? 'Fortsetzen' : 'Pause';
+      document.getElementById('btnPause').className = isPaused
+        ? 'rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium hover:bg-emerald-500'
+        : 'rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium hover:bg-blue-500';
+    });
+
+    document.getElementById('btnTurbo').addEventListener('click', () => {
+      isTurbo = !isTurbo;
+      document.getElementById('btnTurbo').className = isTurbo
+        ? 'rounded-lg bg-amber-400 text-black font-bold px-3 py-2 text-sm transition'
+        : 'rounded-lg bg-amber-600 px-3 py-2 text-sm font-medium hover:bg-amber-500';
+    });
+
+    document.getElementById('btnReset').addEventListener('click', () => {
+      survivalTime = 0;
+      bestRecord = 0;
+      runId = 1;
+      document.getElementById('lblRun').textContent = runId;
+      document.getElementById('lblRecord').textContent = '0s';
+      document.getElementById('lblTime').textContent = '0s';
+      spawnEntities();
+    });
+
+    document.getElementById('btnTeach').addEventListener('click', teachWord);
+    document.getElementById('btnTrigger').addEventListener('click', triggerWord);
+    document.getElementById('wordInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        if (e.shiftKey) teachWord();
+        else triggerWord();
+      }
+    });
+    document.getElementById('speedRange').addEventListener('input', (e) => {
+      simSpeed = parseInt(e.target.value, 10);
+    });
+
+    function spawnEntities() {
+      mouse = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE), idleTime: 0, alive: true, speedBoost: 1, score: 0 };
+      cat = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE) };
+      if (cat.x === mouse.x && cat.y === mouse.y) {
+        cat.x = Math.max(0, (cat.x + 2) % GRID_SIZE);
+      }
+      survivalTime = 0;
+      currentPattern = 'none';
+    }
+
+    function chooseAction() {
+      const typedWord = document.getElementById('wordInput').value.trim().toLowerCase();
+      const memory = typedWord ? languageMemory.get(typedWord) : null;
+
+      if (typedWord && memory && memory.strength >= 3) {
+        currentPattern = memory.pattern;
+        return patternToAction(memory.pattern);
+      }
+
+      if (Math.abs(cat.x - mouse.x) + Math.abs(cat.y - mouse.y) <= 3) {
+        currentPattern = 'flee';
+        return patternToAction('flee');
+      }
+
+      if (typedWord && memory) {
+        currentPattern = memory.pattern;
+        return patternToAction(memory.pattern);
+      }
+
+      if (Math.random() > explorationRate) {
+        const dx = cat.x < mouse.x ? 1 : cat.x > mouse.x ? -1 : 0;
+        const dy = cat.y < mouse.y ? 1 : cat.y > mouse.y ? -1 : 0;
+        if (Math.abs(cat.x - mouse.x) + Math.abs(cat.y - mouse.y) < 5) {
+          currentPattern = 'flee';
+          return { dx: -dx, dy: -dy, name: 'Vor Katze fliehen' };
+        }
+      }
+
+      currentPattern = 'none';
+      return randomAction();
+    }
+
+    function update() {
+      if (isPaused) return;
+
+      const steps = isTurbo ? 12 : simSpeed;
+
+      for (let i = 0; i < steps; i++) {
+        if (!mouse.alive) {
+          if (survivalTime > bestRecord) bestRecord = survivalTime;
+          document.getElementById('lblRecord').textContent = `${bestRecord}s`;
+          runId += 1;
+          document.getElementById('lblRun').textContent = runId;
+          explorationRate = Math.max(0.06, 1.0 - (runId * 0.03));
+          document.getElementById('lblMode').textContent = explorationRate > 0.32 ? `Zufall (${Math.round(explorationRate * 100)}%)` : 'KI-Lernphase';
+          spawnEntities();
+        }
+
+        survivalTime += 1;
+        document.getElementById('lblTime').textContent = `${survivalTime}s`;
+
+        const action = chooseAction();
+        document.getElementById('currentAction').textContent = action.name;
+
+        neurons.forEach(n => {
+          if (Math.random() < 0.18) n.active = 1.0;
+          else n.active *= 0.88;
+        });
+
+        if (action.dx === 0 && action.dy === 0) {
+          mouse.idleTime += 1;
+          document.getElementById('mouseThought').textContent =
+            currentPattern === 'none'
+              ? 'Steht still... Gefahr von Inaktivitäts-Explosion!'
+              : `Muster aktiv: ${labelForPattern(currentPattern)}.`;
+
+          if (mouse.idleTime > 45) {
+            mouse.alive = false;
+          }
+        } else {
+          mouse.idleTime = 0;
+          mouse.x = Math.max(0, Math.min(GRID_SIZE - 1, mouse.x + action.dx));
+          mouse.y = Math.max(0, Math.min(GRID_SIZE - 1, mouse.y + action.dy));
+          if (currentPattern === 'none') {
+            document.getElementById('mouseThought').textContent = 'Erkundet das Spielfeld aktiv...';
+          } else {
+            document.getElementById('mouseThought').textContent = `Wort aktiviert: ${labelForPattern(currentPattern)}.`;
+          }
+        }
+
+        if (Math.random() < 0.75) {
+          if (cat.x < mouse.x) cat.x++;
+          else if (cat.x > mouse.x) cat.x--;
+          if (cat.y < mouse.y) cat.y++;
+          else if (cat.y > mouse.y) cat.y--;
+        }
+
+        if (Math.abs(cat.x - mouse.x) < 1 && Math.abs(cat.y - mouse.y) < 1) {
+          mouse.alive = false;
+          document.getElementById('mouseThought').textContent = '⚠️ Die Katze hat die Maus gefangen!';
+        }
+
+        cheeseList = cheeseList.filter(c => {
+          if (c.x === mouse.x && c.y === mouse.y) {
+            mouse.speedBoost = 1.5;
+            document.getElementById('mouseThought').textContent = '🧀 Käse gefunden! Schneller!';
+            return false;
+          }
+          return true;
+        });
+
+        traps.forEach(t => {
+          if (t.x === mouse.x && t.y === mouse.y) {
+            mouse.alive = false;
+            document.getElementById('mouseThought').textContent = '💥 In der Falle!';
+          }
+        });
+
+        tunnels.forEach(t => {
+          if (t.x === mouse.x && t.y === mouse.y) {
+            document.getElementById('mouseThought').textContent = '🕳️ Tunnel betreten. Sicherer Bereich.';
+          }
+        });
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.strokeStyle = '#1f2937';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i <= GRID_SIZE; i++) {
+        ctx.beginPath();
+        ctx.moveTo(i * CELL_SIZE, 0);
+        ctx.lineTo(i * CELL_SIZE, canvas.height);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0, i * CELL_SIZE);
+        ctx.lineTo(canvas.width, i * CELL_SIZE);
+        ctx.stroke();
+      }
+
+      tunnels.forEach(t => {
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(t.x * CELL_SIZE + 2, t.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px sans-serif';
+        ctx.fillText('🕳️', t.x * CELL_SIZE + 4, t.y * CELL_SIZE + 14);
+      });
+
+      puddles.forEach(p => {
+        ctx.fillStyle = '#4b5563';
+        ctx.beginPath();
+        ctx.arc(p.x * CELL_SIZE + CELL_SIZE / 2, p.y * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      traps.forEach(t => {
+        ctx.font = '16px sans-serif';
+        ctx.fillText('🪤', t.x * CELL_SIZE + 2, t.y * CELL_SIZE + 16);
+      });
+
+      cheeseList.forEach(c => {
+        ctx.font = '16px sans-serif';
+        ctx.fillText('🧀', c.x * CELL_SIZE + 2, c.y * CELL_SIZE + 16);
+      });
+
+      ctx.font = '18px sans-serif';
+      ctx.fillText('🐱', cat.x * CELL_SIZE + 2, cat.y * CELL_SIZE + 18);
+      ctx.fillText('🐭', mouse.x * CELL_SIZE + 2, mouse.y * CELL_SIZE + 18);
+
+      bCtx.fillStyle = '#05070b';
+      bCtx.fillRect(0, 0, brainCanvas.width, brainCanvas.height);
+
+      neurons.forEach((n, idx) => {
+        bCtx.fillStyle = `rgba(99, 102, 241, ${0.28 + n.active * 0.72})`;
+        bCtx.beginPath();
+        bCtx.arc(n.x, n.y, 2 + n.active * 3, 0, Math.PI * 2);
+        bCtx.fill();
+
+        for (let j = idx + 1; j < neurons.length; j++) {
+          const n2 = neurons[j];
+          const dist = Math.hypot(n.x - n2.x, n.y - n2.y);
+          if (dist < 40) {
+            bCtx.strokeStyle = `rgba(99, 102, 241, ${(1 - dist / 40) * (n.active + n2.active) * 0.5})`;
+            bCtx.lineWidth = 0.8;
+            bCtx.beginPath();
+            bCtx.moveTo(n.x, n.y);
+            bCtx.lineTo(n2.x, n2.y);
+            bCtx.stroke();
+          }
+        }
+      });
+
+      bCtx.fillStyle = '#dbeafe';
+      bCtx.font = '12px sans-serif';
+      bCtx.fillText(`Lernmuster: ${labelForPattern(currentPattern)}`, 12, 18);
+      bCtx.fillText(`Wörter: ${languageMemory.size}`, 12, 36);
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    spawnEntities();
+    updateMemoryUI();
+    document.getElementById('wordInput').value = 'achtung';
+    addWordAssociation('achtung', 'flee', 1);
+    addWordAssociation('käse', 'cheese', 1);
+    addWordAssociation('falle', 'trap', 1);
+    addWordAssociation('tunnel', 'tunnel', 1);
+    loop();
+  </script>
+</body>
+</html>
