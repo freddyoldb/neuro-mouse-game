@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NeuroMouse Lab</title>
+  <title>NeuroMouse World</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
@@ -28,8 +28,8 @@
   <div class="mx-auto max-w-6xl">
     <header class="glass mb-4 rounded-2xl p-4 flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-black text-indigo-400">🧠 NeuroMouse Lab</h1>
-        <p class="text-xs text-gray-400">Die Maus lernt selbst – nur mit Sprache.</p>
+        <h1 class="text-2xl font-black text-indigo-400">🧠 NeuroMouse World</h1>
+        <p class="text-xs text-gray-400">Eine globale gemeinsame Lernwelt für alle Nutzer.</p>
       </div>
     </header>
 
@@ -56,7 +56,7 @@
         <canvas id="brainCanvas" width="260" height="200" class="mb-3 w-full rounded-xl border border-slate-800 bg-black/30"></canvas>
 
         <div class="space-y-2 rounded-xl border border-slate-800 bg-slate-900/60 p-3 text-xs text-slate-300">
-          <p>💡 <span id="mouseThought" class="text-indigo-300">Die Maus weiß von nichts und erkundet blind.</span></p>
+          <p>💡 <span id="mouseThought" class="text-indigo-300">Die Maus weiß von nichts und lernt mit jedem Wort.</span></p>
           <p class="text-slate-400">Aktuelle Aktion: <span id="currentAction" class="text-white">-</span></p>
           <p class="text-slate-400">Erinnerung: <span id="memoryView" class="text-cyan-300">noch keine Verknüpfungen</span></p>
         </div>
@@ -76,327 +76,47 @@
     const ctx = canvas.getContext('2d');
     const brainCanvas = document.getElementById('brainCanvas');
     const bCtx = brainCanvas.getContext('2d');
-
     const GRID_SIZE = 20;
     const CELL_SIZE = canvas.width / GRID_SIZE;
-    const MOVE_INTERVAL_MS = 6000;
-    let lastMoveTs = 0;
 
-    let mouse = { x: 5, y: 5, idleTime: 0, alive: true, speedBoost: 1, score: 0 };
-    let cat = { x: 15, y: 15 };
-    let cheeseList = [
-      { x: 12, y: 5 },
-      { x: 3, y: 16 },
-      { x: 17, y: 10 },
-      { x: 6, y: 2 }
-    ];
-    let traps = [
-      { x: 8, y: 8 },
-      { x: 14, y: 3 },
-      { x: 5, y: 17 }
-    ];
-    let puddles = [
-      { x: 10, y: 10 },
-      { x: 11, y: 10 },
-      { x: 7, y: 12 }
-    ];
-    let tunnels = [
-      { x: 5, y: 12 },
-      { x: 6, y: 12 },
-      { x: 16, y: 16 }
-    ];
-
-    let runId = 1;
-    let survivalTime = 0;
-    let bestRecord = 0;
-    let explorationRate = 1.0;
-    let currentPattern = 'none';
-
-    const languageMemory = new Map();
+    const state = {
+      mouse: { x: 5, y: 5 },
+      cat: { x: 15, y: 15 },
+      cheese: [],
+      traps: [],
+      tunnels: [],
+      memory: {},
+      currentPattern: 'none',
+      survivalTime: 0,
+      bestRecord: 0,
+      runId: 1,
+      lastUpdated: 0
+    };
 
     const neurons = Array.from({ length: 42 }, () => ({
       x: Math.random() * 260,
       y: Math.random() * 200,
-      z: Math.random() * 50 - 25,
       active: 0
     }));
 
-    function updateMemoryUI() {
-      const count = languageMemory.size;
-      document.getElementById('lblMemory').textContent = count;
-      const keys = Array.from(languageMemory.keys()).slice(-5);
-      document.getElementById('memoryView').textContent = keys.length ? keys.map(k => `"${k}"`).join(', ') : 'noch keine Verknüpfungen';
+    function render() {
+      if (!state.mouse) return;
+
+      const memoryCount = Object.keys(state.memory || {}).length;
+      document.getElementById('lblMemory').textContent = memoryCount;
+      document.getElementById('lblRun').textContent = state.runId || 1;
+      document.getElementById('lblTime').textContent = `${state.survivalTime || 0}s`;
+      document.getElementById('lblRecord').textContent = `${state.bestRecord || 0}s`;
+      document.getElementById('lblMode').textContent = state.currentPattern === 'none' ? 'Lernphase' : `Muster: ${state.currentPattern}`;
+
+      const memoryKeys = Object.keys(state.memory || {}).slice(-5);
+      document.getElementById('memoryView').textContent = memoryKeys.length ? memoryKeys.join(', ') : 'noch keine Verknüpfungen';
+      document.getElementById('currentAction').textContent = state.currentPattern || 'keine';
+
+      drawWorld();
     }
 
-    function labelForPattern(pattern) {
-      const labels = {
-        flee: 'Flucht',
-        cheese: 'Käse suchen',
-        trap: 'Falle meiden',
-        tunnel: 'Tunnel nutzen',
-        wait: 'Warten',
-        none: 'keine'
-      };
-      return labels[pattern] || 'unbekannt';
-    }
-
-    function inferPatternFromWord(word, situation) {
-      const w = word.toLowerCase();
-      if (/(achtung|warn|katze|angst|flucht|lauf|weg|weglaufen|gefahr|schlecht|tot|fressen|hungrig)/.test(w)) return 'flee';
-      if (/(käse|essen|nahrung|food|mampf|lecker|füttern)/.test(w)) return 'cheese';
-      if (/(falle|trap|stachel|gift|loch|tod|verboten|gefährlich)/.test(w)) return 'trap';
-      if (/(tunnel|loch|gang|schlupf|untergrund|versteck|sicher)/.test(w)) return 'tunnel';
-      if (/(wart|ruhe|still|stopp|bleib|bleiben|ruhig|beobachte)/.test(w)) return 'wait';
-      if (situation === 'cat-near') return 'flee';
-      if (situation === 'cheese-near') return 'cheese';
-      if (situation === 'trap-near') return 'trap';
-      if (situation === 'tunnel-near') return 'tunnel';
-      return 'wait';
-    }
-
-    function randomAction() {
-      const actions = [
-        { dx: 0, dy: -1, name: 'Hoch' },
-        { dx: 0, dy: 1, name: 'Runter' },
-        { dx: -1, dy: 0, name: 'Links' },
-        { dx: 1, dy: 0, name: 'Rechts' },
-        { dx: 0, dy: 0, name: 'Warten' }
-      ];
-      return actions[Math.floor(Math.random() * actions.length)];
-    }
-
-    function patternToAction(pattern) {
-      switch (pattern) {
-        case 'flee': {
-          const dx = cat.x < mouse.x ? 1 : cat.x > mouse.x ? -1 : 0;
-          const dy = cat.y < mouse.y ? 1 : cat.y > mouse.y ? -1 : 0;
-          return {
-            dx: dx === 0 ? (Math.random() > 0.5 ? 1 : -1) : -dx,
-            dy: dy === 0 ? (Math.random() > 0.5 ? 1 : -1) : -dy,
-            name: 'Vor Katze fliehen'
-          };
-        }
-        case 'cheese': {
-          const target = cheeseList[0] || { x: mouse.x, y: mouse.y };
-          let dx = 0; let dy = 0;
-          if (target.x < mouse.x) dx = -1; else if (target.x > mouse.x) dx = 1;
-          if (target.y < mouse.y) dy = -1; else if (target.y > mouse.y) dy = 1;
-          return { dx, dy, name: 'Käse suchen' };
-        }
-        case 'trap': {
-          let best = { dx: 0, dy: 0, score: Infinity };
-          for (let x = -1; x <= 1; x++) {
-            for (let y = -1; y <= 1; y++) {
-              if (x === 0 && y === 0) continue;
-              const nx = Math.max(0, Math.min(GRID_SIZE - 1, mouse.x + x));
-              const ny = Math.max(0, Math.min(GRID_SIZE - 1, mouse.y + y));
-              let s = 0;
-              for (const t of traps) if (t.x === nx && t.y === ny) s += 50;
-              if (s < best.score) best = { dx: x, dy: y, score: s };
-            }
-          }
-          return { dx: best.dx, dy: best.dy, name: 'Falle meiden' };
-        }
-        case 'tunnel': {
-          const target = tunnels[0] || { x: mouse.x, y: mouse.y };
-          let dx = 0; let dy = 0;
-          if (target.x < mouse.x) dx = -1; else if (target.x > mouse.x) dx = 1;
-          if (target.y < mouse.y) dy = -1; else if (target.y > mouse.y) dy = 1;
-          return { dx, dy, name: 'Tunnel nutzen' };
-        }
-        case 'wait':
-        default:
-          return { dx: 0, dy: 0, name: 'Warten' };
-      }
-    }
-
-    function addWordAssociation(word, pattern, amount = 1) {
-      const key = word.trim().toLowerCase();
-      if (!key) return;
-      const existing = languageMemory.get(key) || { pattern, strength: 0 };
-      existing.pattern = pattern;
-      existing.strength += amount;
-      languageMemory.set(key, existing);
-      updateMemoryUI();
-    }
-
-    function teachWord(word) {
-      if (!word) return;
-
-      let situation = 'none';
-      const distToCat = Math.abs(cat.x - mouse.x) + Math.abs(cat.y - mouse.y);
-      const distToCheese = (() => {
-        if (!cheeseList.length) return Infinity;
-        const c = cheeseList[0];
-        return Math.abs(c.x - mouse.x) + Math.abs(c.y - mouse.y);
-      })();
-      const distToTrap = (() => {
-        if (!traps.length) return Infinity;
-        const t = traps[0];
-        return Math.abs(t.x - mouse.x) + Math.abs(t.y - mouse.y);
-      })();
-
-      if (distToCat <= 3) situation = 'cat-near';
-      else if (distToCheese <= 2) situation = 'cheese-near';
-      else if (distToTrap <= 2) situation = 'trap-near';
-
-      const inferred = inferPatternFromWord(word, situation);
-      addWordAssociation(word, inferred, 1);
-      document.getElementById('mouseThought').textContent = `Gelernt: "${word}" -> ${labelForPattern(inferred)}.`;
-      currentPattern = inferred;
-    }
-
-    function triggerWord(word) {
-      if (!word) return;
-      const memory = languageMemory.get(word.trim().toLowerCase());
-      if (!memory) {
-        document.getElementById('mouseThought').textContent = `Das Wort "${word}" ist noch unbekannt. Die Maus lernt noch.`;
-        currentPattern = 'none';
-        return;
-      }
-
-      currentPattern = memory.pattern;
-      const strength = memory.strength;
-      document.getElementById('mouseThought').textContent = `Wort erkannt: "${word}" = ${labelForPattern(currentPattern)} (Stärke ${strength}).`;
-    }
-
-    function sendWord() {
-      const input = document.getElementById('wordInput');
-      const word = input.value.trim();
-      if (!word) {
-        document.getElementById('mouseThought').textContent = 'Kein Wort eingegeben.';
-        return;
-      }
-      teachWord(word);
-      triggerWord(word);
-      input.value = '';
-    }
-
-    document.getElementById('btnSend').addEventListener('click', sendWord);
-    document.getElementById('wordInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendWord();
-    });
-
-    function spawnEntities() {
-      mouse = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE), idleTime: 0, alive: true, speedBoost: 1, score: 0 };
-      cat = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE) };
-      if (cat.x === mouse.x && cat.y === mouse.y) {
-        cat.x = Math.max(0, (cat.x + 2) % GRID_SIZE);
-      }
-      survivalTime = 0;
-      currentPattern = 'none';
-    }
-
-    function chooseAction() {
-      const input = document.getElementById('wordInput');
-      const typedWord = input.value.trim().toLowerCase();
-      const memory = typedWord ? languageMemory.get(typedWord) : null;
-
-      if (typedWord && memory && memory.strength >= 2) {
-        currentPattern = memory.pattern;
-        return patternToAction(memory.pattern);
-      }
-
-      if (Math.abs(cat.x - mouse.x) + Math.abs(cat.y - mouse.y) <= 3) {
-        currentPattern = 'flee';
-        return patternToAction('flee');
-      }
-
-      if (typedWord && memory) {
-        currentPattern = memory.pattern;
-        return patternToAction(memory.pattern);
-      }
-
-      if (Math.random() > explorationRate) {
-        const dx = cat.x < mouse.x ? 1 : cat.x > mouse.x ? -1 : 0;
-        const dy = cat.y < mouse.y ? 1 : cat.y > mouse.y ? -1 : 0;
-        if (Math.abs(cat.x - mouse.x) + Math.abs(cat.y - mouse.y) < 5) {
-          currentPattern = 'flee';
-          return { dx: -dx, dy: -dy, name: 'Vor Katze fliehen' };
-        }
-      }
-
-      currentPattern = 'none';
-      return randomAction();
-    }
-
-    function update() {
-      if (!mouse.alive) {
-        if (survivalTime > bestRecord) bestRecord = survivalTime;
-        document.getElementById('lblRecord').textContent = `${bestRecord}s`;
-        runId += 1;
-        document.getElementById('lblRun').textContent = runId;
-        explorationRate = Math.max(0.06, 1.0 - (runId * 0.03));
-        document.getElementById('lblMode').textContent = explorationRate > 0.32 ? `Zufall (${Math.round(explorationRate * 100)}%)` : 'KI-Lernphase';
-        spawnEntities();
-      }
-
-      survivalTime += 1;
-      document.getElementById('lblTime').textContent = `${survivalTime}s`;
-
-      const action = chooseAction();
-      document.getElementById('currentAction').textContent = action.name;
-
-      neurons.forEach(n => {
-        if (Math.random() < 0.18) n.active = 1.0;
-        else n.active *= 0.88;
-      });
-
-      if (action.dx === 0 && action.dy === 0) {
-        mouse.idleTime += 1;
-        if (currentPattern === 'none') {
-          document.getElementById('mouseThought').textContent = 'Steht still... Gefahr von Inaktivitäts-Explosion!';
-        } else {
-          document.getElementById('mouseThought').textContent = `Muster aktiv: ${labelForPattern(currentPattern)}.`;
-        }
-        if (mouse.idleTime > 45) mouse.alive = false;
-      } else {
-        mouse.idleTime = 0;
-        mouse.x = Math.max(0, Math.min(GRID_SIZE - 1, mouse.x + action.dx));
-        mouse.y = Math.max(0, Math.min(GRID_SIZE - 1, mouse.y + action.dy));
-        if (currentPattern === 'none') {
-          document.getElementById('mouseThought').textContent = 'Erkundet das Spielfeld aktiv...';
-        } else {
-          document.getElementById('mouseThought').textContent = `Wort aktiviert: ${labelForPattern(currentPattern)}.`;
-        }
-      }
-
-      if (Math.random() < 0.75) {
-        if (cat.x < mouse.x) cat.x++;
-        else if (cat.x > mouse.x) cat.x--;
-        if (cat.y < mouse.y) cat.y++;
-        else if (cat.y > mouse.y) cat.y--;
-      }
-
-      if (Math.abs(cat.x - mouse.x) < 1 && Math.abs(cat.y - mouse.y) < 1) {
-        mouse.alive = false;
-        document.getElementById('mouseThought').textContent = '⚠️ Die Katze hat die Maus gefangen!';
-      }
-
-      cheeseList = cheeseList.filter(c => {
-        if (c.x === mouse.x && c.y === mouse.y) {
-          mouse.speedBoost = 1.5;
-          document.getElementById('mouseThought').textContent = '🧀 Käse gefunden! Schneller!';
-          return false;
-        }
-        return true;
-      });
-
-      traps.forEach(t => {
-        if (t.x === mouse.x && t.y === mouse.y) {
-          mouse.alive = false;
-          document.getElementById('mouseThought').textContent = '💥 In der Falle!';
-        }
-      });
-
-      tunnels.forEach(t => {
-        if (t.x === mouse.x && t.y === mouse.y) {
-          document.getElementById('mouseThought').textContent = '🕳️ Tunnel betreten. Sicherer Bereich.';
-        }
-      });
-    }
-
-    function draw() {
+    function drawWorld() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.strokeStyle = '#1f2937';
       ctx.lineWidth = 0.5;
@@ -405,13 +125,14 @@
         ctx.moveTo(i * CELL_SIZE, 0);
         ctx.lineTo(i * CELL_SIZE, canvas.height);
         ctx.stroke();
+
         ctx.beginPath();
         ctx.moveTo(0, i * CELL_SIZE);
         ctx.lineTo(canvas.width, i * CELL_SIZE);
         ctx.stroke();
       }
 
-      tunnels.forEach(t => {
+      (state.tunnels || []).forEach(t => {
         ctx.fillStyle = '#3b82f6';
         ctx.fillRect(t.x * CELL_SIZE + 2, t.y * CELL_SIZE + 2, CELL_SIZE - 4, CELL_SIZE - 4);
         ctx.fillStyle = '#fff';
@@ -419,26 +140,19 @@
         ctx.fillText('🕳️', t.x * CELL_SIZE + 4, t.y * CELL_SIZE + 14);
       });
 
-      puddles.forEach(p => {
-        ctx.fillStyle = '#4b5563';
-        ctx.beginPath();
-        ctx.arc(p.x * CELL_SIZE + CELL_SIZE / 2, p.y * CELL_SIZE + CELL_SIZE / 2, CELL_SIZE / 3, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      traps.forEach(t => {
-        ctx.font = '16px sans-serif';
-        ctx.fillText('🪤', t.x * CELL_SIZE + 2, t.y * CELL_SIZE + 16);
-      });
-
-      cheeseList.forEach(c => {
+      (state.cheese || []).forEach(c => {
         ctx.font = '16px sans-serif';
         ctx.fillText('🧀', c.x * CELL_SIZE + 2, c.y * CELL_SIZE + 16);
       });
 
+      (state.traps || []).forEach(t => {
+        ctx.font = '16px sans-serif';
+        ctx.fillText('🪤', t.x * CELL_SIZE + 2, t.y * CELL_SIZE + 16);
+      });
+
       ctx.font = '18px sans-serif';
-      ctx.fillText('🐱', cat.x * CELL_SIZE + 2, cat.y * CELL_SIZE + 18);
-      ctx.fillText('🐭', mouse.x * CELL_SIZE + 2, mouse.y * CELL_SIZE + 18);
+      ctx.fillText('🐱', state.cat.x * CELL_SIZE + 2, state.cat.y * CELL_SIZE + 18);
+      ctx.fillText('🐭', state.mouse.x * CELL_SIZE + 2, state.mouse.y * CELL_SIZE + 18);
 
       bCtx.fillStyle = '#05070b';
       bCtx.fillRect(0, 0, brainCanvas.width, brainCanvas.height);
@@ -465,27 +179,68 @@
 
       bCtx.fillStyle = '#dbeafe';
       bCtx.font = '12px sans-serif';
-      bCtx.fillText(`Lernmuster: ${labelForPattern(currentPattern)}`, 12, 18);
-      bCtx.fillText(`Wörter: ${languageMemory.size}`, 12, 36);
+      bCtx.fillText(`Lernmuster: ${state.currentPattern || 'none'}`, 12, 18);
+      bCtx.fillText(`Wörter: ${Object.keys(state.memory || {}).length}`, 12, 36);
     }
 
-    function loop(ts) {
-      if (ts - lastMoveTs >= MOVE_INTERVAL_MS) {
-        update();
-        lastMoveTs = ts;
+    async function fetchWorld() {
+      try {
+        const response = await fetch('/api/world');
+        const data = await response.json();
+        Object.assign(state, data);
+        render();
+      } catch (error) {
+        document.getElementById('mouseThought').textContent = 'Backend nicht erreichbar – Server starten?';
       }
-      draw();
-      requestAnimationFrame(loop);
     }
 
-    spawnEntities();
-    updateMemoryUI();
-    document.getElementById('wordInput').value = 'achtung';
-    teachWord('achtung');
-    teachWord('käse');
-    teachWord('falle');
-    teachWord('tunnel');
-    requestAnimationFrame(loop);
+    async function sendWord() {
+      const input = document.getElementById('wordInput');
+      const word = input.value.trim();
+      if (!word) {
+        document.getElementById('mouseThought').textContent = 'Kein Wort eingegeben.';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/world/teach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ word })
+        });
+        const data = await response.json();
+        if (data.ok) {
+          document.getElementById('mouseThought').textContent = `Gelernt: "${word}" -> ${data.pattern}.`;
+          input.value = '';
+          fetchWorld();
+        }
+      } catch (error) {
+        document.getElementById('mouseThought').textContent = 'Fehler beim Senden des Wortes.';
+      }
+    }
+
+    async function tickWorld() {
+      try {
+        const response = await fetch('/api/world/tick', { method: 'POST' });
+        const data = await response.json();
+        if (data && data.world) {
+          Object.assign(state, data.world);
+          render();
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    document.getElementById('btnSend').addEventListener('click', sendWord);
+    document.getElementById('wordInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendWord();
+    });
+
+    fetchWorld();
+    setInterval(() => {
+      tickWorld();
+    }, 6000);
   </script>
 </body>
 </html>
