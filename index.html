@@ -29,7 +29,7 @@
     <header class="glass mb-4 rounded-2xl p-4 flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-black text-indigo-400">🧠 NeuroMouse Lab</h1>
-        <p class="text-xs text-gray-400">Die Maus lernt selbst – nur mit Wörtern.</p>
+        <p class="text-xs text-gray-400">Die Maus lernt selbst – nur mit Sprache.</p>
       </div>
     </header>
 
@@ -79,10 +79,8 @@
 
     const GRID_SIZE = 20;
     const CELL_SIZE = canvas.width / GRID_SIZE;
-
     const MOVE_INTERVAL_MS = 6000;
     let lastMoveTs = 0;
-    let isPaused = false;
 
     let mouse = { x: 5, y: 5, idleTime: 0, alive: true, speedBoost: 1, score: 0 };
     let cat = { x: 15, y: 15 };
@@ -144,12 +142,11 @@
 
     function inferPatternFromWord(word, situation) {
       const w = word.toLowerCase();
-      if (/(achtung|warn|katze|angst|flucht|lauf|weg|weglaufen|gefahr|schlecht|tot)/.test(w)) return 'flee';
-      if (/(käse|essen|essen+|nahrung|essen|food|gold)/.test(w)) return 'cheese';
-      if (/(falle|trap|stachel|tod|gift|loch|scharf)/.test(w)) return 'trap';
-      if (/(tunnel|loch|gang|versteck|untergrund|weg)/.test(w)) return 'tunnel';
-      if (/(wart|ruhe|still|stopp|bleib|bleiben|ruhig)/.test(w)) return 'wait';
-
+      if (/(achtung|warn|katze|angst|flucht|lauf|weg|weglaufen|gefahr|schlecht|tot|fressen|hungrig)/.test(w)) return 'flee';
+      if (/(käse|essen|nahrung|food|mampf|lecker|füttern)/.test(w)) return 'cheese';
+      if (/(falle|trap|stachel|gift|loch|tod|verboten|gefährlich)/.test(w)) return 'trap';
+      if (/(tunnel|loch|gang|schlupf|untergrund|versteck|sicher)/.test(w)) return 'tunnel';
+      if (/(wart|ruhe|still|stopp|bleib|bleiben|ruhig|beobachte)/.test(w)) return 'wait';
       if (situation === 'cat-near') return 'flee';
       if (situation === 'cheese-near') return 'cheese';
       if (situation === 'trap-near') return 'trap';
@@ -179,7 +176,6 @@
             name: 'Vor Katze fliehen'
           };
         }
-
         case 'cheese': {
           const target = cheeseList[0] || { x: mouse.x, y: mouse.y };
           let dx = 0; let dy = 0;
@@ -187,7 +183,6 @@
           if (target.y < mouse.y) dy = -1; else if (target.y > mouse.y) dy = 1;
           return { dx, dy, name: 'Käse suchen' };
         }
-
         case 'trap': {
           let best = { dx: 0, dy: 0, score: Infinity };
           for (let x = -1; x <= 1; x++) {
@@ -196,17 +191,12 @@
               const nx = Math.max(0, Math.min(GRID_SIZE - 1, mouse.x + x));
               const ny = Math.max(0, Math.min(GRID_SIZE - 1, mouse.y + y));
               let s = 0;
-              for (const t of traps) {
-                if (t.x === nx && t.y === ny) s += 50;
-              }
-              if (s < best.score) {
-                best = { dx: x, dy: y, score: s };
-              }
+              for (const t of traps) if (t.x === nx && t.y === ny) s += 50;
+              if (s < best.score) best = { dx: x, dy: y, score: s };
             }
           }
           return { dx: best.dx, dy: best.dy, name: 'Falle meiden' };
         }
-
         case 'tunnel': {
           const target = tunnels[0] || { x: mouse.x, y: mouse.y };
           let dx = 0; let dy = 0;
@@ -214,7 +204,6 @@
           if (target.y < mouse.y) dy = -1; else if (target.y > mouse.y) dy = 1;
           return { dx, dy, name: 'Tunnel nutzen' };
         }
-
         case 'wait':
         default:
           return { dx: 0, dy: 0, name: 'Warten' };
@@ -224,7 +213,6 @@
     function addWordAssociation(word, pattern, amount = 1) {
       const key = word.trim().toLowerCase();
       if (!key) return;
-
       const existing = languageMemory.get(key) || { pattern, strength: 0 };
       existing.pattern = pattern;
       existing.strength += amount;
@@ -333,8 +321,6 @@
     }
 
     function update() {
-      if (isPaused) return;
-
       if (!mouse.alive) {
         if (survivalTime > bestRecord) bestRecord = survivalTime;
         document.getElementById('lblRecord').textContent = `${bestRecord}s`;
@@ -412,7 +398,6 @@
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
       ctx.strokeStyle = '#1f2937';
       ctx.lineWidth = 0.5;
       for (let i = 0; i <= GRID_SIZE; i++) {
@@ -420,7 +405,6 @@
         ctx.moveTo(i * CELL_SIZE, 0);
         ctx.lineTo(i * CELL_SIZE, canvas.height);
         ctx.stroke();
-
         ctx.beginPath();
         ctx.moveTo(0, i * CELL_SIZE);
         ctx.lineTo(canvas.width, i * CELL_SIZE);
@@ -486,7 +470,7 @@
     }
 
     function loop(ts) {
-      if (!isPaused && ts - lastMoveTs >= MOVE_INTERVAL_MS) {
+      if (ts - lastMoveTs >= MOVE_INTERVAL_MS) {
         update();
         lastMoveTs = ts;
       }
