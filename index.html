@@ -26,14 +26,10 @@
 </head>
 <body class="min-h-screen p-4">
   <div class="mx-auto max-w-6xl">
-    <header class="glass mb-4 rounded-2xl p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <header class="glass mb-4 rounded-2xl p-4 flex items-center justify-between">
       <div>
         <h1 class="text-2xl font-black text-indigo-400">🧠 NeuroMouse Lab</h1>
-        <p class="text-xs text-gray-400">Die Maus lernt von Null auf – mit Wörtern, Gefahr und Mustern.</p>
-      </div>
-
-      <div class="flex flex-wrap gap-2">
-        <button id="btnPause" class="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium hover:bg-blue-500">Pause</button>
+        <p class="text-xs text-gray-400">Die Maus lernt selbst – nur mit Wörtern.</p>
       </div>
     </header>
 
@@ -43,33 +39,15 @@
           <span>Runde: <strong id="lblRun" class="text-white">1</strong></span>
           <span>Überlebt: <strong id="lblTime" class="text-white">0s</strong></span>
           <span>Rekord: <strong id="lblRecord" class="text-emerald-400">0s</strong></span>
-          <span>Modus: <strong id="lblMode" class="text-amber-400">Zufall (100%)</strong></span>
+          <span>Modus: <strong id="lblMode" class="text-amber-400">Lernphase</strong></span>
           <span>Wörter: <strong id="lblMemory" class="text-cyan-300">0</strong></span>
         </div>
 
         <canvas id="simCanvas" width="420" height="420" class="w-full max-w-[420px] mx-auto block"></canvas>
 
-        <div class="mt-4 space-y-3">
-          <div class="flex flex-col gap-2 sm:flex-row">
-            <input id="wordInput" type="text" value="achtung" class="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none ring-0 placeholder:text-slate-500 focus:border-indigo-500" placeholder="Wort eingeben: achtung, käse, falle, tunnel..." />
-            <button id="btnTrigger" class="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500">Wort aktivieren</button>
-          </div>
-
-          <div class="flex flex-col gap-2 sm:flex-row">
-            <select id="patternSelect" class="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-indigo-500">
-              <option value="flee">Flucht</option>
-              <option value="cheese">Käse suchen</option>
-              <option value="trap">Falle meiden</option>
-              <option value="tunnel">Tunnel nutzen</option>
-              <option value="wait">Warten / Beobachten</option>
-            </select>
-            <button id="btnTeach" class="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium hover:bg-emerald-500">Wort verknüpfen</button>
-          </div>
-
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-gray-400">Tempo:</span>
-            <input id="speedRange" type="range" min="1" max="20" value="1" class="w-full accent-indigo-500" />
-          </div>
+        <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+          <input id="wordInput" type="text" value="achtung" class="flex-1 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-indigo-500" placeholder="Wort eingeben..." />
+          <button id="btnSend" class="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-medium hover:bg-indigo-500">Senden</button>
         </div>
       </section>
 
@@ -102,14 +80,12 @@
     const GRID_SIZE = 20;
     const CELL_SIZE = canvas.width / GRID_SIZE;
 
-    const MOVE_INTERVAL_MS = 1000;
+    const MOVE_INTERVAL_MS = 6000;
     let lastMoveTs = 0;
     let isPaused = false;
-    let isTurbo = false;
-    let simSpeed = 1;
 
     let mouse = { x: 5, y: 5, idleTime: 0, alive: true, speedBoost: 1, score: 0 };
-    let cat = { x: 15, y: 15, speed: 0.8 };
+    let cat = { x: 15, y: 15 };
     let cheeseList = [
       { x: 12, y: 5 },
       { x: 3, y: 16 },
@@ -166,6 +142,21 @@
       return labels[pattern] || 'unbekannt';
     }
 
+    function inferPatternFromWord(word, situation) {
+      const w = word.toLowerCase();
+      if (/(achtung|warn|katze|angst|flucht|lauf|weg|weglaufen|gefahr|schlecht|tot)/.test(w)) return 'flee';
+      if (/(käse|essen|essen+|nahrung|essen|food|gold)/.test(w)) return 'cheese';
+      if (/(falle|trap|stachel|tod|gift|loch|scharf)/.test(w)) return 'trap';
+      if (/(tunnel|loch|gang|versteck|untergrund|weg)/.test(w)) return 'tunnel';
+      if (/(wart|ruhe|still|stopp|bleib|bleiben|ruhig)/.test(w)) return 'wait';
+
+      if (situation === 'cat-near') return 'flee';
+      if (situation === 'cheese-near') return 'cheese';
+      if (situation === 'trap-near') return 'trap';
+      if (situation === 'tunnel-near') return 'tunnel';
+      return 'wait';
+    }
+
     function randomAction() {
       const actions = [
         { dx: 0, dy: -1, name: 'Hoch' },
@@ -182,7 +173,6 @@
         case 'flee': {
           const dx = cat.x < mouse.x ? 1 : cat.x > mouse.x ? -1 : 0;
           const dy = cat.y < mouse.y ? 1 : cat.y > mouse.y ? -1 : 0;
-
           return {
             dx: dx === 0 ? (Math.random() > 0.5 ? 1 : -1) : -dx,
             dy: dy === 0 ? (Math.random() > 0.5 ? 1 : -1) : -dy,
@@ -192,12 +182,9 @@
 
         case 'cheese': {
           const target = cheeseList[0] || { x: mouse.x, y: mouse.y };
-          let dx = 0;
-          let dy = 0;
-          if (target.x < mouse.x) dx = -1;
-          else if (target.x > mouse.x) dx = 1;
-          if (target.y < mouse.y) dy = -1;
-          else if (target.y > mouse.y) dy = 1;
+          let dx = 0; let dy = 0;
+          if (target.x < mouse.x) dx = -1; else if (target.x > mouse.x) dx = 1;
+          if (target.y < mouse.y) dy = -1; else if (target.y > mouse.y) dy = 1;
           return { dx, dy, name: 'Käse suchen' };
         }
 
@@ -222,12 +209,9 @@
 
         case 'tunnel': {
           const target = tunnels[0] || { x: mouse.x, y: mouse.y };
-          let dx = 0;
-          let dy = 0;
-          if (target.x < mouse.x) dx = -1;
-          else if (target.x > mouse.x) dx = 1;
-          if (target.y < mouse.y) dy = -1;
-          else if (target.y > mouse.y) dy = 1;
+          let dx = 0; let dy = 0;
+          if (target.x < mouse.x) dx = -1; else if (target.x > mouse.x) dx = 1;
+          if (target.y < mouse.y) dy = -1; else if (target.y > mouse.y) dy = 1;
           return { dx, dy, name: 'Tunnel nutzen' };
         }
 
@@ -248,67 +232,61 @@
       updateMemoryUI();
     }
 
-    function teachWord() {
-      const input = document.getElementById('wordInput');
-      const word = input.value.trim();
-      const pattern = document.getElementById('patternSelect').value;
+    function teachWord(word) {
+      if (!word) return;
 
-      if (!word) {
-        document.getElementById('mouseThought').textContent = 'Kein Wort eingegeben. Die Maus kann nichts verknüpfen.';
-        return;
-      }
+      let situation = 'none';
+      const distToCat = Math.abs(cat.x - mouse.x) + Math.abs(cat.y - mouse.y);
+      const distToCheese = (() => {
+        if (!cheeseList.length) return Infinity;
+        const c = cheeseList[0];
+        return Math.abs(c.x - mouse.x) + Math.abs(c.y - mouse.y);
+      })();
+      const distToTrap = (() => {
+        if (!traps.length) return Infinity;
+        const t = traps[0];
+        return Math.abs(t.x - mouse.x) + Math.abs(t.y - mouse.y);
+      })();
 
-      const catClose = Math.abs(cat.x - mouse.x) + Math.abs(cat.y - mouse.y) <= 4;
-      if (pattern === 'flee' && !catClose) {
-        document.getElementById('mouseThought').textContent = 'Das Wort "Flucht" ist am sinnvollsten, wenn die Katze wirklich nah ist.';
-      }
+      if (distToCat <= 3) situation = 'cat-near';
+      else if (distToCheese <= 2) situation = 'cheese-near';
+      else if (distToTrap <= 2) situation = 'trap-near';
 
-      addWordAssociation(word, pattern, 1);
-      document.getElementById('mouseThought').textContent = `Wort "${word}" mit Muster "${labelForPattern(pattern)}" verknüpft.`;
+      const inferred = inferPatternFromWord(word, situation);
+      addWordAssociation(word, inferred, 1);
+      document.getElementById('mouseThought').textContent = `Gelernt: "${word}" -> ${labelForPattern(inferred)}.`;
+      currentPattern = inferred;
     }
 
-    function triggerWord() {
-      const word = document.getElementById('wordInput').value.trim().toLowerCase();
-      if (!word) {
-        document.getElementById('mouseThought').textContent = 'Keine Eingabe. Die Maus kann kein Wort aktivieren.';
-        return;
-      }
-
-      const memory = languageMemory.get(word);
+    function triggerWord(word) {
+      if (!word) return;
+      const memory = languageMemory.get(word.trim().toLowerCase());
       if (!memory) {
-        document.getElementById('mouseThought').textContent = `Das Wort "${word}" ist noch unbekannt. Die Maus lernt erst.`;
+        document.getElementById('mouseThought').textContent = `Das Wort "${word}" ist noch unbekannt. Die Maus lernt noch.`;
         currentPattern = 'none';
         return;
       }
 
       currentPattern = memory.pattern;
       const strength = memory.strength;
-
-      if (strength >= 3 || currentPattern === 'flee') {
-        document.getElementById('mouseThought').textContent = `Wort erkannt: "${word}" = ${labelForPattern(currentPattern)} (Stärke ${strength}).`;
-      } else {
-        document.getElementById('mouseThought').textContent = `Wort erkannt, aber noch schwach: "${word}" -> ${labelForPattern(currentPattern)}.`;
-      }
+      document.getElementById('mouseThought').textContent = `Wort erkannt: "${word}" = ${labelForPattern(currentPattern)} (Stärke ${strength}).`;
     }
 
-    document.getElementById('btnPause').addEventListener('click', () => {
-      isPaused = !isPaused;
-      document.getElementById('btnPause').textContent = isPaused ? 'Fortsetzen' : 'Pause';
-      document.getElementById('btnPause').className = isPaused
-        ? 'rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium hover:bg-emerald-500'
-        : 'rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium hover:bg-blue-500';
-    });
-
-    document.getElementById('btnTeach').addEventListener('click', teachWord);
-    document.getElementById('btnTrigger').addEventListener('click', triggerWord);
-    document.getElementById('wordInput').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        if (e.shiftKey) teachWord();
-        else triggerWord();
+    function sendWord() {
+      const input = document.getElementById('wordInput');
+      const word = input.value.trim();
+      if (!word) {
+        document.getElementById('mouseThought').textContent = 'Kein Wort eingegeben.';
+        return;
       }
-    });
-    document.getElementById('speedRange').addEventListener('input', (e) => {
-      simSpeed = parseInt(e.target.value, 10);
+      teachWord(word);
+      triggerWord(word);
+      input.value = '';
+    }
+
+    document.getElementById('btnSend').addEventListener('click', sendWord);
+    document.getElementById('wordInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendWord();
     });
 
     function spawnEntities() {
@@ -322,10 +300,11 @@
     }
 
     function chooseAction() {
-      const typedWord = document.getElementById('wordInput').value.trim().toLowerCase();
+      const input = document.getElementById('wordInput');
+      const typedWord = input.value.trim().toLowerCase();
       const memory = typedWord ? languageMemory.get(typedWord) : null;
 
-      if (typedWord && memory && memory.strength >= 3) {
+      if (typedWord && memory && memory.strength >= 2) {
         currentPattern = memory.pattern;
         return patternToAction(memory.pattern);
       }
@@ -356,85 +335,79 @@
     function update() {
       if (isPaused) return;
 
-      const steps = isTurbo ? 1 : 1;
-
-      for (let i = 0; i < steps; i++) {
-        if (!mouse.alive) {
-          if (survivalTime > bestRecord) bestRecord = survivalTime;
-          document.getElementById('lblRecord').textContent = `${bestRecord}s`;
-          runId += 1;
-          document.getElementById('lblRun').textContent = runId;
-          explorationRate = Math.max(0.06, 1.0 - (runId * 0.03));
-          document.getElementById('lblMode').textContent = explorationRate > 0.32 ? `Zufall (${Math.round(explorationRate * 100)}%)` : 'KI-Lernphase';
-          spawnEntities();
-        }
-
-        survivalTime += 1;
-        document.getElementById('lblTime').textContent = `${survivalTime}s`;
-
-        const action = chooseAction();
-        document.getElementById('currentAction').textContent = action.name;
-
-        neurons.forEach(n => {
-          if (Math.random() < 0.18) n.active = 1.0;
-          else n.active *= 0.88;
-        });
-
-        if (action.dx === 0 && action.dy === 0) {
-          mouse.idleTime += 1;
-          document.getElementById('mouseThought').textContent =
-            currentPattern === 'none'
-              ? 'Steht still... Gefahr von Inaktivitäts-Explosion!'
-              : `Muster aktiv: ${labelForPattern(currentPattern)}.`;
-
-          if (mouse.idleTime > 45) {
-            mouse.alive = false;
-          }
-        } else {
-          mouse.idleTime = 0;
-          mouse.x = Math.max(0, Math.min(GRID_SIZE - 1, mouse.x + action.dx));
-          mouse.y = Math.max(0, Math.min(GRID_SIZE - 1, mouse.y + action.dy));
-          if (currentPattern === 'none') {
-            document.getElementById('mouseThought').textContent = 'Erkundet das Spielfeld aktiv...';
-          } else {
-            document.getElementById('mouseThought').textContent = `Wort aktiviert: ${labelForPattern(currentPattern)}.`;
-          }
-        }
-
-        if (Math.random() < 0.75) {
-          if (cat.x < mouse.x) cat.x++;
-          else if (cat.x > mouse.x) cat.x--;
-          if (cat.y < mouse.y) cat.y++;
-          else if (cat.y > mouse.y) cat.y--;
-        }
-
-        if (Math.abs(cat.x - mouse.x) < 1 && Math.abs(cat.y - mouse.y) < 1) {
-          mouse.alive = false;
-          document.getElementById('mouseThought').textContent = '⚠️ Die Katze hat die Maus gefangen!';
-        }
-
-        cheeseList = cheeseList.filter(c => {
-          if (c.x === mouse.x && c.y === mouse.y) {
-            mouse.speedBoost = 1.5;
-            document.getElementById('mouseThought').textContent = '🧀 Käse gefunden! Schneller!';
-            return false;
-          }
-          return true;
-        });
-
-        traps.forEach(t => {
-          if (t.x === mouse.x && t.y === mouse.y) {
-            mouse.alive = false;
-            document.getElementById('mouseThought').textContent = '💥 In der Falle!';
-          }
-        });
-
-        tunnels.forEach(t => {
-          if (t.x === mouse.x && t.y === mouse.y) {
-            document.getElementById('mouseThought').textContent = '🕳️ Tunnel betreten. Sicherer Bereich.';
-          }
-        });
+      if (!mouse.alive) {
+        if (survivalTime > bestRecord) bestRecord = survivalTime;
+        document.getElementById('lblRecord').textContent = `${bestRecord}s`;
+        runId += 1;
+        document.getElementById('lblRun').textContent = runId;
+        explorationRate = Math.max(0.06, 1.0 - (runId * 0.03));
+        document.getElementById('lblMode').textContent = explorationRate > 0.32 ? `Zufall (${Math.round(explorationRate * 100)}%)` : 'KI-Lernphase';
+        spawnEntities();
       }
+
+      survivalTime += 1;
+      document.getElementById('lblTime').textContent = `${survivalTime}s`;
+
+      const action = chooseAction();
+      document.getElementById('currentAction').textContent = action.name;
+
+      neurons.forEach(n => {
+        if (Math.random() < 0.18) n.active = 1.0;
+        else n.active *= 0.88;
+      });
+
+      if (action.dx === 0 && action.dy === 0) {
+        mouse.idleTime += 1;
+        if (currentPattern === 'none') {
+          document.getElementById('mouseThought').textContent = 'Steht still... Gefahr von Inaktivitäts-Explosion!';
+        } else {
+          document.getElementById('mouseThought').textContent = `Muster aktiv: ${labelForPattern(currentPattern)}.`;
+        }
+        if (mouse.idleTime > 45) mouse.alive = false;
+      } else {
+        mouse.idleTime = 0;
+        mouse.x = Math.max(0, Math.min(GRID_SIZE - 1, mouse.x + action.dx));
+        mouse.y = Math.max(0, Math.min(GRID_SIZE - 1, mouse.y + action.dy));
+        if (currentPattern === 'none') {
+          document.getElementById('mouseThought').textContent = 'Erkundet das Spielfeld aktiv...';
+        } else {
+          document.getElementById('mouseThought').textContent = `Wort aktiviert: ${labelForPattern(currentPattern)}.`;
+        }
+      }
+
+      if (Math.random() < 0.75) {
+        if (cat.x < mouse.x) cat.x++;
+        else if (cat.x > mouse.x) cat.x--;
+        if (cat.y < mouse.y) cat.y++;
+        else if (cat.y > mouse.y) cat.y--;
+      }
+
+      if (Math.abs(cat.x - mouse.x) < 1 && Math.abs(cat.y - mouse.y) < 1) {
+        mouse.alive = false;
+        document.getElementById('mouseThought').textContent = '⚠️ Die Katze hat die Maus gefangen!';
+      }
+
+      cheeseList = cheeseList.filter(c => {
+        if (c.x === mouse.x && c.y === mouse.y) {
+          mouse.speedBoost = 1.5;
+          document.getElementById('mouseThought').textContent = '🧀 Käse gefunden! Schneller!';
+          return false;
+        }
+        return true;
+      });
+
+      traps.forEach(t => {
+        if (t.x === mouse.x && t.y === mouse.y) {
+          mouse.alive = false;
+          document.getElementById('mouseThought').textContent = '💥 In der Falle!';
+        }
+      });
+
+      tunnels.forEach(t => {
+        if (t.x === mouse.x && t.y === mouse.y) {
+          document.getElementById('mouseThought').textContent = '🕳️ Tunnel betreten. Sicherer Bereich.';
+        }
+      });
     }
 
     function draw() {
@@ -524,10 +497,10 @@
     spawnEntities();
     updateMemoryUI();
     document.getElementById('wordInput').value = 'achtung';
-    addWordAssociation('achtung', 'flee', 1);
-    addWordAssociation('käse', 'cheese', 1);
-    addWordAssociation('falle', 'trap', 1);
-    addWordAssociation('tunnel', 'tunnel', 1);
+    teachWord('achtung');
+    teachWord('käse');
+    teachWord('falle');
+    teachWord('tunnel');
     requestAnimationFrame(loop);
   </script>
 </body>
